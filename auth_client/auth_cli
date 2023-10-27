@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+
+'''
+    ADI Auth Client
+'''
+
+import sys
+import logging
+import argparse
+from io import StringIO
+
+import adiauthcli
+from adiauthcli.errors import NO_ERROR, SCRIPT_ERROR, CMDCLI_ERROR
+from adiauthcli.shell import prompt_password
+
+
+__version__ = '1.0'
+
+_DEB = logging.debug
+_ERR = logging.error
+_WRN = logging.warning
+_INF = logging.info
+
+
+def main():
+    user_options = parse_command_line()
+
+    if not user_options:
+        return CMDCLI_ERROR
+
+    exit_code = NO_ERROR
+
+    # Prepare input files
+    script_files = []
+    if len(user_options.SCRIPTS) == 0:
+        _DEB('Enable input commands from standard input')
+        script_files.append(sys.stdin)
+    else:
+        for script_file in user_options.SCRIPTS:
+            _DEB(f'Enable commands from file {script_file}')
+            script_files.append(open(script_file, 'r'))
+
+    # Use the same client instance for all input files
+    client = None
+    if user_options.URL is not None:
+        if user_options.admin:
+            _DEB('Autologin as administrator')
+            client = adiauthcli.Client(user_options.URL, admin_token=user_options.admin)
+        else:
+            client = adiauthcli.Client(user_options.URL)
+            if user_options.username:
+                _DEB('Autologin as user')
+                if not user_options.password:
+                    user_options.password = prompt_password()
+                client.login(user_options.username, user_options.password)
+
+    output = StringIO()
+    interactive = False
+    raw_input = False
+    for input_file in script_files:
+        if input_file is sys.stdin:
+            raw_input = True
+            if sys.stdin.isatty():
+                interactive = True
+                output = sys.stdout
+                stdout_output('ADI Auth interactive shell initialized')
+                stdout_output('Use "?" for help. Ctrl-d to quit.')
+        shell = adiauthcli.Shell(stdin=input_file, stdout=output)
+        if user_options.admin:
+            shell.admin_token = user_options.admin
+        shell.client = client
+        shell.use_rawinput = raw_input
+        shell.interactive = interactive
+        if user_options.force:
+            shell.stop_on_error = False
+        shell.output = stdout_output
+        shell.cmdloop()
+        if shell.bad_exit:
+            _ERR('Command process interrupted')
+            _ERR(shell.error_cause)
+            exit_code = SCRIPT_ERROR
+            break
+
+    for fd in script_files:
+        if fd is sys.stdin:
+            continue
+        fd.close()
+
+    return exit_code
+
+
+def parse_command_line():
+    '''Parse and check CLI'''
+    parser = argparse.ArgumentParser(description='Client for ADI Auth service')
+    parser.add_argument('URL', nargs='?', default=None, help='URL of ADI Auth API.')
+    parser.add_argument('SCRIPTS', nargs='*',
+                        help='Scripts to run. Stdin (interactive) used if omited.')
+    parser.add_argument('--version', action='version',
+                        version=__version__)
+    auth = parser.add_argument_group('Auto-login options')
+    auth.add_argument('-a', '--admin', action='store', default=None,
+                      dest='admin', help='Set administrator token')
+    auth.add_argument('-u', '--username', default=None,
+                      dest='username', help='Username to auto-login (default: disable auto-login)')
+    auth.add_argument('-p', '--password', action='store', default=None,
+                      dest='password', help='Set password instead of prompt (not recommended, insecure)')
+    running = parser.add_argument_group('Running options')
+    running.add_argument('--force', action='store_true', default=False,
+                         dest='force', help='Continue even if some error is reported')
+    debopts = parser.add_argument_group('Debugging options')
+    debopts.add_argument('--debug', '-d', action='store_true', default=False,
+                         dest='debug', help='Show debugging messages')
+    args = parser.parse_args()
+    logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
+
+    if (args.admin or args.username) and (not args.URL):
+        logging.error('Cannot use autologin without URL')
+        return
+    if args.admin and args.username:
+        logging.error('Cannot set user as an administrator')
+        return
+    return args
+
+
+def stdout_output(message: str):
+    '''Message to stdout'''
+    if message.strip() != '':
+        _DEB(message)
+        print(message)
+
+
+if __name__ == '__main__':
+    sys.exit(main())

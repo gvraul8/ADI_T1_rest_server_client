@@ -9,8 +9,11 @@ import argparse
 
 from flask import Flask, make_response, request
 
-from adiserver import DEFAULT_PORT, HTTPS_DEBUG_MODE
+from adiserver import DEFAULT_PORT, HTTPS_DEBUG_MODE, DEFAULT_BLOB_DB
 from adiserver.service import BlobDB
+from adiserver.client import Client
+
+
 
 def routeApp(app, BLOBDB):
     '''Enruta la API REST a la webapp'''
@@ -18,11 +21,31 @@ def routeApp(app, BLOBDB):
     @app.route('/api/v1/blob', methods=['POST'])
     def create_blob():
         '''Crea un nuevo blob'''
-        return make_response('Not implemented', 501)
+        print("entra create blob")
+        client = Client("http://127.0.0.1:3011", check_service=False)
+        if "USER-TOKEN" in request.headers:
+            user_token = request.headers["USER-TOKEN"]
+            user= client.token_owner(user_token)
+            print(user)
+        else:
+            print("no se mete")
+            if user == None:
+                return make_response('Unauthorized', 401)
+
+        data = request.get_json()
+        name = data['name']
+        local_name = data['local_name']
+        visibility = data['visibility']
+        users = data['users']
+
+        blobid = BLOBDB.create_blob(name, local_name, visibility, users)
+
+        return make_response({'BlobId': blobid,"URLaccess":'/api/v1/blob/'+str(blobid)}, 201)
 
     @app.route('/api/v1/blob/<blobId>', methods=['GET'])
     def get_blob(blobId):
         '''Obtiene un blob por su ID'''
+
         return make_response('Not implemented', 501)
 
     @app.route('/api/v1/blob/<blob>', methods=['DELETE'])
@@ -74,22 +97,22 @@ def main():
     '''Entry point for the auth server'''
     user_options = parse_commandline()
 
-    service = ServerService(user_options.address, user_options.port)
+    service = ServerService(user_options.db_path, user_options.address, user_options.port)
 
     try:
         print(f'Starting service on: {service.base_uri}')
         service.start()
     except Exception as error: # pylint: disable=broad-except
         logging.error('Cannot start API: %s', error)
-        sys.exit(1)
+        sys.exit(2)
 
     service.stop()
 
 
 class ServerService:
     '''Wrap all components used by the service'''
-    def __init__(self, host='0.0.0.0', port=DEFAULT_PORT):
-        self._blobdb_ = BlobDB()
+    def __init__(self, db_path, host='0.0.0.0', port=DEFAULT_PORT):
+        self._blobdb_ = BlobDB(db_path)
 
         self._host_ = host
         self._port_ = port
@@ -124,6 +147,11 @@ def parse_commandline():
         '-l', '--listening', type=str, default='0.0.0.0',
         help='Listening address (default: all interfaces)', dest='address'
     )
+    parser.add_argument(
+        '-d', '--db', type=str, default=DEFAULT_BLOB_DB,
+        help='Database to use (default: %(default)s', dest='db_path'
+    )
+
 
     args = parser.parse_args()
     return args
