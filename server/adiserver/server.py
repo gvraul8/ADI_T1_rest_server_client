@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-'''Auth server'''
+'''Blob server'''
 
 
 import sys
@@ -11,9 +11,7 @@ from flask import Flask, make_response, request
 
 from adiserver import DEFAULT_PORT, HTTPS_DEBUG_MODE, DEFAULT_BLOB_DB
 from adiserver.service import BlobDB
-from adiserver.client import Client
-
-
+from adiauthcli.client import Client
 
 def routeApp(app, BLOBDB):
     '''Enruta la API REST a la webapp'''
@@ -21,16 +19,14 @@ def routeApp(app, BLOBDB):
     @app.route('/api/v1/blob', methods=['POST'])
     def create_blob():
         '''Crea un nuevo blob'''
-        print("entra create blob")
-        client = Client("http://127.0.0.1:3011", check_service=False)
+        client = Client("http://127.0.0.1:3001", check_service=False)
         if "USER-TOKEN" in request.headers:
             user_token = request.headers["USER-TOKEN"]
             user= client.token_owner(user_token)
-            print(user)
-        else:
-            print("no se mete")
             if user == None:
                 return make_response('Unauthorized', 401)
+        else:
+            return make_response('Unauthorized', 401)
 
         data = request.get_json()
         name = data['name']
@@ -48,15 +44,41 @@ def routeApp(app, BLOBDB):
 
         return make_response('Not implemented', 501)
 
-    @app.route('/api/v1/blob/<blob>', methods=['DELETE'])
+    @app.route('/api/v1/blob/<blobId>', methods=['DELETE'])
     def delete_blob(blobId):
         '''Elimina un blob por su ID'''
-        return make_response('Not implemented', 501)
+        client = Client("http://127.0.0.1:3001", check_service=False)
+        if "USER-TOKEN" in request.headers:
+            user_token = request.headers["USER-TOKEN"]
+            user= client.token_owner(user_token)
+            if user == None:
+                return make_response('Unauthorized', 401)
+        else:
+            return make_response('Unauthorized', 401)
+        blolId= BLOBDB.delete_blob(blobId)
+        return make_response("El blob con ID: "+str(blobId)+" ha sido eliminado", 204)
 
     @app.route('/api/v1/blob/<blobId>', methods=['PUT'])
     def update_blob(blobId):
         '''Actualiza un blob por su ID'''
-        return make_response('Not implemented', 501)
+        client = Client("http://127.0.0.1:3001", check_service=False)
+        if "USER-TOKEN" in request.headers:
+            user_token = request.headers["USER-TOKEN"]
+            user= client.token_owner(user_token)
+            if user == None:
+                return make_response('Unauthorized', 401)
+        else:
+            return make_response('Unauthorized', 401)
+
+        data = request.get_json()
+        name = data['name']
+        local_name = data['local_name']
+        visibility = data['visibility']
+        users = data['users']
+
+        blobId = BLOBDB.update_blob(blobId, name, local_name, visibility, users)
+        return make_response({"respuesta":"El blob con ID: "+str(blobId)+" ha sido actualizado"}, 204)
+        
 
     @app.route('/api/v1/blob/<blobId>/hash', methods=['GET'])
     def get_blob_hash(blobId):
