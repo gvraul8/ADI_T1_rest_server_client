@@ -79,16 +79,6 @@ def routeApp(app, BLOBDB):
         blobId = BLOBDB.update_blob(blobId, name, local_name, visibility, users)
         return make_response({"respuesta":"El blob con ID: "+str(blobId)+" ha sido actualizado"}, 204)
 
-
-    @app.route('/api/v1/blob/<blobId>/hash', methods=['GET'])
-    def get_blob_hash(blobId):
-        '''Obtiene el hash de un blob por su ID'''
-        type_param = request.args.get('type')
-        if type != 'HASH':
-            return make_response('Invalid type param', 400)
-
-        return make_response('Not implemented', 501)
-
     @app.route('/api/v1/blob/<blobId>/visibility', methods=['PUT', 'PATCH'])
     def update_blob_visibility(blobId):
         '''Actualiza la visibilidad de un blol por su ID'''

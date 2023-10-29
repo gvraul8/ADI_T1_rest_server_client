@@ -19,8 +19,15 @@ pip freeze > requirements.txt
 source adi/bin/activate
 ```
 
-### Instalar las dependencias
+### Instalar las dependencias en auth_client
 ```bash
+cd auth_client
+pip install .
+```
+
+### Instalar las dependencias en el servidor
+```bash
+cd server
 pip install .
 ```
 
