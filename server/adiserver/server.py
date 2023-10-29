@@ -89,10 +89,44 @@ def routeApp(app, BLOBDB):
 
         return make_response('Not implemented', 501)
 
-    @app.route('/api/v1/blob/<blobId>/visibility', methods=['PUT, PATCH'])
+    @app.route('/api/v1/blob/<blobId>/visibility', methods=['PUT', 'PATCH'])
     def update_blob_visibility(blobId):
-        '''Actualiza la visibilidad de un blob por su ID'''
-        return make_response('Not implemented', 501)
+        '''Actualiza la visibilidad de un blol por su ID'''
+        client = Client("http://127.0.0.1:3001", check_service=False)
+        if "USER-TOKEN" in request.headers:
+            user_token = request.headers["USER-TOKEN"]
+            user= client.token_owner(user_token)
+            owner = client.token_owner(user_token)
+            if user == None or owner != user or owner == None:
+                return make_response('Unauthorized', 401)
+        else:
+            return make_response('Unauthorized', 401)
+
+        data = request.get_json()
+        visibility = data['visibility']
+        if visibility == "True":
+            visibility = 'public'
+        else:
+            visibility = 'private'
+        BLOBDB.change_visibility(blobId, visibility)
+
+        return make_response({},204)
+
+    @app.route('/api/v1/blob/myblobs', methods=['GET'])
+    def get_myBlobs():
+        '''Obtiene todos los blobs un usuario determinado si es el propietario'''
+        client = Client("http://127.0.0.1:3001", check_service=False)
+        if "USER-TOKEN" in request.headers:
+            user_token = request.headers["USER-TOKEN"]
+            user= client.token_owner(user_token)
+            owner = client.token_owner(user_token)
+            if user == None or owner != user or owner == None:
+                return make_response('Unauthorized', 401)
+        else:
+            return make_response('Unauthorized', 401)
+        
+        user_blobs = BLOBDB.get_user_blobs(user)
+        return make_response(user_blobs, 200)
 
     @app.route('/api/v1/blob/<blobId>/acl', methods=['POST'])
     def create_blob_acl(blobId):
