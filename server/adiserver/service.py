@@ -44,7 +44,7 @@ class BlobDB:
             return None
 
 
-    def update_blob(self, id, name, local_name, visibility, users):
+    def update_blob(self, name, local_name, visibility, users):
         conn = None
         try:
             conn = sqlite3.connect(self.db_file)
@@ -66,6 +66,50 @@ class BlobDB:
             print("Record deleted successfully")
         except:
             print("Record deletion failed")
+        finally:
+            if conn:
+                conn.close()
+
+    def get_blob(self, id):
+        conn = None
+        try:
+            conn = sqlite3.connect(self.db_file)
+            cursor = conn.execute(f"SELECT * FROM blobs WHERE id = {id}")
+            print("Record selected successfully")
+            return cursor.fetchone()
+        except:
+            print("Record selection failed")
+        finally:
+            if conn:
+                conn.close()
+
+    def get_users(self, id):
+        conn = None
+        try:
+            conn = sqlite3.connect(self.db_file)
+            cursor = conn.execute(f"SELECT users FROM blobs WHERE id = {id}")
+            print("Record selected successfully")
+            return cursor.fetchone()
+        except:
+            print("Record selection failed")
+        finally:
+            if conn:
+                conn.close()
+
+    def delete_user(self, blobId, user_to_remove_permission):
+        conn = None
+        try:
+            conn = sqlite3.connect(self.db_file)
+            cursor = conn.execute(f"SELECT users FROM blobs WHERE id = {blobId}")
+            users = cursor.fetchone()[0]
+            users_list = users.split(",")
+            users_list.remove(user_to_remove_permission)
+            users = ",".join(users_list)
+            conn.execute(f"UPDATE blobs SET users = '{users}' WHERE id = {blobId}")
+            conn.commit()
+            print("Record updated successfully")
+        except:
+            print("Record update failed")
         finally:
             if conn:
                 conn.close()
