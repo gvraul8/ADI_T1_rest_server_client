@@ -43,8 +43,7 @@ class BlobDB:
             print(f"Record insertion failed: {str(e)}")
             return None
 
-
-    def update_blob(self, name, local_name, visibility, users):
+    def update_blob(self, id, name, local_name, visibility, users):
         conn = None
         try:
             conn = sqlite3.connect(self.db_file)
@@ -69,6 +68,42 @@ class BlobDB:
         finally:
             if conn:
                 conn.close()
+
+    def change_visibility(self, blob_id, new_visibility):
+    
+        try:
+            self.conn = sqlite3.connect(self.db_file)
+            cursor = self.conn.cursor()
+            cursor.execute("UPDATE blobs SET visibility = ? WHERE id = ?", (new_visibility, blob_id))
+            self.conn.commit()
+            print(f"El blob con ID {blob_id} ahora tiene visibilidad {new_visibility}")
+        except Exception as e:
+            print(f"Error al cambiar la visibilidad: {str(e)}")
+    
+    def get_user_blobs(self,user):
+    
+        try:
+            conn = sqlite3.connect(self.db_file)
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, name, local_name, visibility, users FROM blobs")
+            rows = cursor.fetchall()
+
+            user_blobs = []
+            for row in rows:
+                blob_id, name, local_name, visibility, users = row
+                users_list = users.split(",") if users else []
+                if user in users_list:
+                    user_blobs.append({
+                        "id": blob_id,
+                        "name": name,
+                        "local_name": local_name,
+                        "visibility": visibility,
+                        "users": users_list
+                    })
+            return user_blobs
+        except Exception as e:
+            print(f"Error al obtener los blobs del usuario: {str(e)}")
+            return []
 
     def get_blob(self, id):
         conn = None
@@ -96,7 +131,7 @@ class BlobDB:
             if conn:
                 conn.close()
 
-    def delete_user(self, blobId, user_to_remove_permission):
+    def delete_user(self,blobId,user_to_remove_permission):
         conn = None
         try:
             conn = sqlite3.connect(self.db_file)
@@ -113,6 +148,3 @@ class BlobDB:
         finally:
             if conn:
                 conn.close()
-
-
-
