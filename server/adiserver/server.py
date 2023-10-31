@@ -5,7 +5,8 @@
 import hashlib
 import sys
 import logging
-import argparse
+import argparse 
+import json
 
 from flask import Flask, make_response, request
 
@@ -41,8 +42,18 @@ def routeApp(app, BLOBDB):
     @app.route('/api/v1/blob/<blobId>', methods=['GET'])
     def get_blob(blobId):
         '''Obtiene un blob por su ID'''
+        blob=BLOBDB.get_blob(blobId)
+        
+        response = {
+            "id": blob[0],
+            "name": blob[1],
+            "local_name": blob[2],
+            "visibility": blob[3],
+            "users": [blob[4]]
+        }
+        response_json = json.dumps(response)
 
-        return make_response('Not implemented', 501)
+        return make_response(response_json,200)
 
     @app.route('/api/v1/blob/<blobId>', methods=['DELETE'])
     def delete_blob(blobId):
@@ -51,12 +62,13 @@ def routeApp(app, BLOBDB):
         if "USER-TOKEN" in request.headers:
             user_token = request.headers["USER-TOKEN"]
             user= client.token_owner(user_token)
-            if user == None:
+            owner = client.token_owner(user_token)
+            if user == None or owner != user or owner == None:
                 return make_response('Unauthorized', 401)
         else:
             return make_response('Unauthorized', 401)
-        blolId= BLOBDB.delete_blob(blobId)
-        return make_response("El blob con ID: "+str(blobId)+" ha sido eliminado", 204)
+        BLOBDB.delete_blob(blobId)
+        return make_response({}, 204)
 
     @app.route('/api/v1/blob/<blobId>', methods=['PUT'])
     def update_blob(blobId):
@@ -65,7 +77,8 @@ def routeApp(app, BLOBDB):
         if "USER-TOKEN" in request.headers:
             user_token = request.headers["USER-TOKEN"]
             user= client.token_owner(user_token)
-            if user == None:
+            owner = client.token_owner(user_token)
+            if user == None or owner != user or owner == None:
                 return make_response('Unauthorized', 401)
         else:
             return make_response('Unauthorized', 401)
@@ -76,9 +89,9 @@ def routeApp(app, BLOBDB):
         visibility = data['visibility']
         users = data['users']
 
-        blobId = BLOBDB.update_blob(blobId, name, local_name, visibility, users)
-        return make_response({"respuesta":"El blob con ID: "+str(blobId)+" ha sido actualizado"}, 204)
-
+        BLOBDB.update_blob(blobId, name, local_name, visibility, users)
+        return make_response({}, 204)
+        
     @app.route('/api/v1/blob/<blobId>/visibility', methods=['PUT', 'PATCH'])
     def update_blob_visibility(blobId):
         '''Actualiza la visibilidad de un blol por su ID'''
@@ -101,7 +114,7 @@ def routeApp(app, BLOBDB):
         BLOBDB.change_visibility(blobId, visibility)
 
         return make_response({},204)
-
+    
     @app.route('/api/v1/blob/myblobs', methods=['GET'])
     def get_myBlobs():
         '''Obtiene todos los blobs un usuario determinado si es el propietario'''
@@ -114,10 +127,9 @@ def routeApp(app, BLOBDB):
                 return make_response('Unauthorized', 401)
         else:
             return make_response('Unauthorized', 401)
-
+        
         user_blobs = BLOBDB.get_user_blobs(user)
         return make_response(user_blobs, 200)
-
 
     @app.route('/api/v1/blob/<blobId>/acl', methods=['POST'])
     def create_blob_acl(blobId):
@@ -151,7 +163,7 @@ def routeApp(app, BLOBDB):
                 return make_response({}, 204)
 
     @app.route('/api/v1/blob/<blobId>/acl/<username>', methods=['DELETE'])
-    def delete_blob_acl(blobId, username):
+    def delete_blob_acl(blobId,username):
         '''Elimina un usuario del acl de un blob'''
         client = Client("http://127.0.0.1:3001/", check_service=False)
         if "USER-TOKEN" in request.headers:
@@ -164,7 +176,7 @@ def routeApp(app, BLOBDB):
             return make_response('Unauthorized', 401)
 
         blob = BLOBDB.get_blob(blobId)
-        user_to_remove=username
+        
         if blob == None:
             return make_response('Blob not found', 404)
         else:
@@ -174,7 +186,7 @@ def routeApp(app, BLOBDB):
                 print('User does not have permission')
                 return make_response('User does not have permission', 409)
             else:
-                BLOBDB.delete_user(blobId, username)
+                BlobDB.delete_user(blobId, username)
                 return make_response('User permission removed', 201)
 
     @app.route('/api/v1/blob/<blobId>/acl', methods=['PUT, PATCH'])
@@ -222,7 +234,7 @@ def routeApp(app, BLOBDB):
             return make_response('Unauthorized', 401)
 
         blob = BLOBDB.get_blob(blobId)
-
+        
         if blob == None:
             return make_response('Blob not found', 404)
         else:
