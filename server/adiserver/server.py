@@ -12,7 +12,8 @@ from flask import Flask, make_response, request
 
 from adiserver import DEFAULT_PORT, HTTPS_DEBUG_MODE, DEFAULT_BLOB_DB
 from adiserver.service import BlobDB
-from adiauthcli.client import Client
+from adiauthcli.client import Client,Unauthorized,UserNotExists,UserAlreadyExists
+
 
 def routeApp(app, BLOBDB):
     '''Enruta la API REST a la webapp'''
@@ -22,127 +23,189 @@ def routeApp(app, BLOBDB):
         '''Crea un nuevo blob'''
         client = Client("http://127.0.0.1:3001", check_service=False)
         if "USER-TOKEN" in request.headers:
-            user_token = request.headers["USER-TOKEN"]
-            user= client.token_owner(user_token)
-            if user == None:
+            try:
+                user_token = request.headers["USER-TOKEN"]
+                owner_blob= client.token_owner(user_token)
+            except Unauthorized as e:
                 return make_response('Unauthorized', 401)
+            except UserNotExists as e:
+                return make_response('Unauthorized', 401)
+
+            data = request.get_json()
+            name = data['name']
+            local_name = data['local_name']
+            visibility = data['visibility']
+            users = data['users']
+
+            blobid = BLOBDB.create_blob(name, local_name, visibility, users,owner_blob)
+
+            return make_response({'BlobId': blobid,"URLaccess":'/api/v1/blob/'+str(blobid)}, 201)
         else:
             return make_response('Unauthorized', 401)
 
-        data = request.get_json()
-        name = data['name']
-        local_name = data['local_name']
-        visibility = data['visibility']
-        users = data['users']
-
-        blobid = BLOBDB.create_blob(name, local_name, visibility, users)
-
-        return make_response({'BlobId': blobid,"URLaccess":'/api/v1/blob/'+str(blobid)}, 201)
-
     @app.route('/api/v1/blob/<blobId>', methods=['GET'])
     def get_blob(blobId):
-        '''Obtiene un blob por su ID'''
-        blob=BLOBDB.get_blob(blobId)
+        client = Client("http://127.0.0.1:3001", check_service=False)
+        blob_visibility=BLOBDB.getVisibilityBlob(blobId)
         
-        response = {
-            "id": blob[0],
-            "name": blob[1],
-            "local_name": blob[2],
-            "visibility": blob[3],
-            "users": [blob[4]]
-        }
-        response_json = json.dumps(response)
+        if blob_visibility == 'public':
+            '''Obtiene un blob por su ID'''
+            blob=BLOBDB.get_blob(blobId)
+            
+            response = {
+                "id": blob[0],
+                "name": blob[1],
+                "local_name": blob[2],
+                "visibility": blob[3],
+                "users": [blob[4]]
+            }
+            response_json = json.dumps(response)
 
-        return make_response(response_json,200)
-
+            return make_response(response_json,200)
+        
+        elif "USER-TOKEN" in request.headers:
+                try:
+                    user_token = request.headers["USER-TOKEN"]
+                    user= client.token_owner(user_token)
+                    owner = BLOBDB.blobOwner(blobId)
+                    users=BLOBDB.get_users(blobId)
+                    if user in users or owner == user:
+                        blob=BLOBDB.get_blob(blobId)
+                        
+                        response = {
+                            "id": blob[0],
+                            "name": blob[1],
+                            "local_name": blob[2],
+                            "visibility": blob[3],
+                            "users": [blob[4]]
+                        }
+                        response_json = json.dumps(response)
+                        return make_response(response_json,200)
+                    else:
+                        return make_response('Unauthorized', 401)
+                except Unauthorized as e:
+                    return make_response('Unauthorized', 401)
+                except UserNotExists as e:
+                    return make_response('Unauthorized', 401)
+        else:
+            return make_response('Unauthorized', 401)
+        
     @app.route('/api/v1/blob/<blobId>', methods=['DELETE'])
     def delete_blob(blobId):
         '''Elimina un blob por su ID'''
         client = Client("http://127.0.0.1:3001", check_service=False)
         if "USER-TOKEN" in request.headers:
-            user_token = request.headers["USER-TOKEN"]
-            user= client.token_owner(user_token)
-            owner = client.token_owner(user_token)
-            if user == None or owner != user or owner == None:
+            
+            try:
+                user_token = request.headers["USER-TOKEN"]
+                user= client.token_owner(user_token)
+                owner = BLOBDB.blobOwner(blobId)
+                if user == None or owner != user or owner == None:
+                    return make_response('Unauthorized', 401)
+            except Unauthorized as e:
                 return make_response('Unauthorized', 401)
+            except UserNotExists as e:
+                return make_response('Unauthorized', 401)
+
+            BLOBDB.delete_blob(blobId)
+            return make_response({}, 204)
         else:
             return make_response('Unauthorized', 401)
-        BLOBDB.delete_blob(blobId)
-        return make_response({}, 204)
 
     @app.route('/api/v1/blob/<blobId>', methods=['PUT'])
     def update_blob(blobId):
         '''Actualiza un blob por su ID'''
         client = Client("http://127.0.0.1:3001", check_service=False)
         if "USER-TOKEN" in request.headers:
-            user_token = request.headers["USER-TOKEN"]
-            user= client.token_owner(user_token)
-            owner = client.token_owner(user_token)
-            if user == None or owner != user or owner == None:
+            
+            try:
+                user_token = request.headers["USER-TOKEN"]
+                user= client.token_owner(user_token)
+                owner = BLOBDB.blobOwner(blobId)
+                if user == None or owner != user or owner == None:
+                    return make_response('Unauthorized', 401)
+            except Unauthorized as e:
                 return make_response('Unauthorized', 401)
+            except UserNotExists as e:
+                return make_response('Unauthorized', 401)
+
+            data = request.get_json()
+            name = data['name']
+            local_name = data['local_name']
+            visibility = data['visibility']
+            users = data['users']
+
+            BLOBDB.update_blob(blobId, name, local_name, visibility, users)
+            return make_response({}, 204)
         else:
             return make_response('Unauthorized', 401)
-
-        data = request.get_json()
-        name = data['name']
-        local_name = data['local_name']
-        visibility = data['visibility']
-        users = data['users']
-
-        BLOBDB.update_blob(blobId, name, local_name, visibility, users)
-        return make_response({}, 204)
         
     @app.route('/api/v1/blob/<blobId>/visibility', methods=['PUT', 'PATCH'])
     def update_blob_visibility(blobId):
         '''Actualiza la visibilidad de un blol por su ID'''
         client = Client("http://127.0.0.1:3001", check_service=False)
         if "USER-TOKEN" in request.headers:
-            user_token = request.headers["USER-TOKEN"]
-            user= client.token_owner(user_token)
-            owner = client.token_owner(user_token)
-            if user == None or owner != user or owner == None:
+            
+            try:
+                user_token = request.headers["USER-TOKEN"]
+                user= client.token_owner(user_token)
+                owner = BLOBDB.blobOwner(blobId)
+                if user == None or owner != user or owner == None:
+                    return make_response('Unauthorized', 401)
+            except Unauthorized as e:
                 return make_response('Unauthorized', 401)
+            except UserNotExists as e:
+                return make_response('Unauthorized', 401)
+
+            data = request.get_json()
+            visibility = data['visibility']
+            if visibility == "True":
+                visibility = 'public'
+            else:
+                visibility = 'private'
+            BLOBDB.change_visibility(blobId, visibility)
+
+            return make_response({},204)
         else:
             return make_response('Unauthorized', 401)
-
-        data = request.get_json()
-        visibility = data['visibility']
-        if visibility == "True":
-            visibility = 'public'
-        else:
-            visibility = 'private'
-        BLOBDB.change_visibility(blobId, visibility)
-
-        return make_response({},204)
     
     @app.route('/api/v1/blob/myblobs', methods=['GET'])
     def get_myBlobs():
         '''Obtiene todos los blobs un usuario determinado si es el propietario'''
         client = Client("http://127.0.0.1:3001", check_service=False)
         if "USER-TOKEN" in request.headers:
-            user_token = request.headers["USER-TOKEN"]
-            user= client.token_owner(user_token)
-            owner = client.token_owner(user_token)
-            if user == None or owner != user or owner == None:
+            
+            try:
+                user_token = request.headers["USER-TOKEN"]
+                user= client.token_owner(user_token)
+                if user == None:
+                    return make_response('Unauthorized', 401)
+            except Unauthorized as e:
                 return make_response('Unauthorized', 401)
+            except UserNotExists as e:
+                return make_response('Unauthorized', 401)
+        
+            user_blobs = BLOBDB.get_user_blobs(user)
+            return make_response(user_blobs, 200)
         else:
             return make_response('Unauthorized', 401)
-        
-        user_blobs = BLOBDB.get_user_blobs(user)
-        return make_response(user_blobs, 200)
 
     @app.route('/api/v1/blob/<blobId>/acl', methods=['POST'])
     def create_blob_acl(blobId):
         '''Crea la acl de un blob'''
         client = Client("http://127.0.0.1:3001/", check_service=False)
         if "USER-TOKEN" in request.headers:
-            user_token = request.headers["USER-TOKEN"]
-            user= client.token_owner(user_token)
-            owner = client.token_owner(user_token)
-            if user == None or owner != user or owner == None:
+            
+            try:
+                user_token = request.headers["USER-TOKEN"]
+                user= client.token_owner(user_token)
+                owner = BLOBDB.blobOwner(blobId)
+                if user == None or owner != user or owner == None:
+                    return make_response('Unauthorized', 401)
+            except Unauthorized as e:
                 return make_response('Unauthorized', 401)
-        else:
-            return make_response('Unauthorized', 401)
+            except UserNotExists as e:
+                return make_response('Unauthorized', 401)
 
         data = request.get_json()
         user_to_add_permission = data['user']
@@ -167,13 +230,17 @@ def routeApp(app, BLOBDB):
         '''Elimina un usuario del acl de un blob'''
         client = Client("http://127.0.0.1:3001/", check_service=False)
         if "USER-TOKEN" in request.headers:
-            user_token = request.headers["USER-TOKEN"]
-            user= client.token_owner(user_token)
-            owner = client.token_owner(user_token)
-            if user == None or owner != user or owner == None:
+            
+            try:
+                user_token = request.headers["USER-TOKEN"]
+                user= client.token_owner(user_token)
+                owner = BLOBDB.blobOwner(blobId)
+                if user == None or owner != user or owner == None:
+                    return make_response('Unauthorized', 401)
+            except Unauthorized as e:
                 return make_response('Unauthorized', 401)
-        else:
-            return make_response('Unauthorized', 401)
+            except UserNotExists as e:
+                return make_response('Unauthorized', 401)
 
         blob = BLOBDB.get_blob(blobId)
         
@@ -196,14 +263,15 @@ def routeApp(app, BLOBDB):
         if "USER-TOKEN" in request.headers:
             user_token = request.headers["USER-TOKEN"]
             user= client.token_owner(user_token)
-            owner = client.token_owner(user_token)
+            owner = BLOBDB.blobOwner(blobId)
             if user == None or owner != user or owner == None:
                 return make_response('Unauthorized', 401)
         else:
             return make_response('Unauthorized', 401)
 
         data = request.get_json()
-        user_to_add_permission = data['user']
+
+        user_to_add_permission = data['users']
 
         blob = BLOBDB.get_blob(blobId)
         users_blob = list(BLOBDB.get_users(blobId))
@@ -216,8 +284,7 @@ def routeApp(app, BLOBDB):
                 return make_response('User already has permission', 409)
             else:
                 users_blob.append(user_to_add_permission)
-                print(users_blob)
-                BLOBDB.update_blob(blob['name'], blob['local_name'], blob['visibility'], users_blob)
+                BLOBDB.update_blob(blobId, blob[1], blob[2], blob[3], user_to_add_permission)
                 return make_response({}, 204)
 
     @app.route('/api/v1/blob/<blobId>/acl', methods=['GET'])
@@ -227,14 +294,14 @@ def routeApp(app, BLOBDB):
         if "USER-TOKEN" in request.headers:
             user_token = request.headers["USER-TOKEN"]
             user= client.token_owner(user_token)
-            owner = client.token_owner(user_token)
+            owner = BlobDB.blobOwner(blobId)
             if user == None or owner != user or owner == None:
                 return make_response('Unauthorized', 401)
         else:
             return make_response('Unauthorized', 401)
 
         blob = BLOBDB.get_blob(blobId)
-        
+
         if blob == None:
             return make_response('Blob not found', 404)
         else:
@@ -244,27 +311,67 @@ def routeApp(app, BLOBDB):
     @app.route('/api/v1/blob/<blobId>/hash', methods=['GET'])
     def get_blob_hash(blobId):
         '''Obtiene el hash de un blob por su ID'''
-        hash_type = request.args.get('type')
-        if hash_type == None:
-            return make_response('You must to give a hash type (MD5, SHA256)', 400)
-        else:
-            hash_type = hash_type.upper()
-            if hash_type != 'MD5' and hash_type != 'SHA256':
-                return make_response('Hash type not valid', 400)
+        client = Client("http://127.0.0.1:3001", check_service=False)
+        blob_visibility=BLOBDB.getVisibilityBlob(blobId)
+        
+        if blob_visibility == 'public':
+            hash_type = request.args.get('type')
+            if hash_type == None:
+                return make_response('You must to give a hash type (MD5, SHA256)', 400)
             else:
-                blob = BLOBDB.get_blob(blobId)
-                print(blob)
-                print(blob[1])
-                if blob == None:
-                    return make_response('Blob not found', 404)
+                hash_type = hash_type.upper()
+                if hash_type != 'MD5' and hash_type != 'SHA256':
+                    return make_response('Hash type not valid', 400)
                 else:
-                    # Para concatenar todos los elementos del objeto 'blob' en una sola cadena
-                    blob_data = ''.join(map(str, blob)).encode('utf-8')
-                    if hash_type == 'MD5':
-                        sum_hash = hashlib.md5(blob_data).hexdigest()
-                    elif hash_type == 'SHA256':
-                        sum_hash = hashlib.sha256(blob_data).hexdigest()
-        return make_response(sum_hash, 200)
+                    blob = BLOBDB.get_blob(blobId)
+                    #print(blob)
+                    #print(blob[1])
+                    if blob == None:
+                        return make_response('Blob not found', 404)
+                    else:
+                        # Para concatenar todos los elementos del objeto 'blob' en una sola cadena
+                        blob_data = ''.join(map(str, blob)).encode('utf-8')
+                        if hash_type == 'MD5':
+                            sum_hash = hashlib.md5(blob_data).hexdigest()
+                        elif hash_type == 'SHA256':
+                            sum_hash = hashlib.sha256(blob_data).hexdigest()
+            return make_response(sum_hash, 200)
+        elif "USER-TOKEN" in request.headers:
+            try:
+                user_token = request.headers["USER-TOKEN"]
+                user= client.token_owner(user_token)
+                owner = BLOBDB.blobOwner(blobId)
+                users=BLOBDB.get_users(blobId)
+                if user in users or owner == user:
+                    hash_type = request.args.get('type')
+                    if hash_type == None:
+                        return make_response('You must to give a hash type (MD5, SHA256)', 400)
+                    else:
+                        hash_type = hash_type.upper()
+                        if hash_type != 'MD5' and hash_type != 'SHA256':
+                            return make_response('Hash type not valid', 400)
+                        else:
+                            blob = BLOBDB.get_blob(blobId)
+                            #print(blob)
+                            #print(blob[1])
+                            if blob == None:
+                                return make_response('Blob not found', 404)
+                            else:
+                                # Para concatenar todos los elementos del objeto 'blob' en una sola cadena
+                                blob_data = ''.join(map(str, blob)).encode('utf-8')
+                                if hash_type == 'MD5':
+                                    sum_hash = hashlib.md5(blob_data).hexdigest()
+                                elif hash_type == 'SHA256':
+                                    sum_hash = hashlib.sha256(blob_data).hexdigest()
+                    return make_response(sum_hash, 200)
+                else:
+                        return make_response('Unauthorized', 401)
+            except Unauthorized as e:
+                return make_response('Unauthorized', 401)
+            except UserNotExists as e:
+                return make_response('Unauthorized', 401)
+        else:
+            return make_response('Unauthorized', 401)
 
 def main():
     '''Entry point for the auth server'''
@@ -305,8 +412,6 @@ class ServerService:
 
     def stop(self):
         '''Cancel all remaining timers'''
-
-
 
 def parse_commandline():
     '''Parse command line'''
