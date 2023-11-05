@@ -20,6 +20,11 @@ from adiauth.service import AuthDB, TokenManager
 def routeApp(app, AUTHDB, TOKENMAN):
     '''Enruta la API REST a la webapp'''
 
+    @app.route('/v1/status', methods=['GET'])
+    def do_status():
+        '''Retorna el estado del servicio'''
+        return make_response('Service running', 200)
+    
     @app.route('/v1/user/login', methods=['POST'])
     def do_login():
         '''Genera un token si el usuario es valido'''
