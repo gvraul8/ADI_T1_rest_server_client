@@ -1,3 +1,4 @@
+import argparse
 import cmd
 import json
 import requests
@@ -33,18 +34,14 @@ class Blob:
         return blob_service.deleteBlob(self)
 
     def revokeUser(self, username):
-        """ Delete an user from accesslist  """
-        if isinstance(self.allowedUsers, str):
-            self.allowedUsers = self.allowedUsers.split(',')
-        elif not isinstance(self.allowedUsers, list):
-            self.allowedUsers = []
-
+        """ Delete a user from the access list """
+        self.allowedUsers = self.allowedUsers[0].split(',')
         self.allowedUsers = [user.strip() for user in self.allowedUsers]
-
 
         if username in self.allowedUsers:
             self.allowedUsers.remove(username)
             print(f"User '{username}' has been revoked from the access list.")
+
 
     def setVisibility(self, visibility):
         """ Change blob visibility """
@@ -135,8 +132,7 @@ class BlobService:
 
         if response.status_code == 200:
             blobs_data = response.json()
-            blob_ids = [blob[0] for blob in blobs_data]
-            return blob_ids
+            return blobs_data
         elif response.status_code == 401:
             raise Unauthorized("Unauthorized")
         else:
@@ -153,7 +149,7 @@ class BlobService:
         if response.status_code == 200:
             blob_data = response.json()
 
-            blob = Blob(blob_data["BlobId"], self.authToken)
+            blob = Blob(blob_data['id'], self.authToken)
             responseMD5 = requests.get(f"{self.serviceURL}/api/v1/blob/{blobId}/hash?type=MD5", headers=headers)
             responseSHA256 = requests.get(f"{self.serviceURL}/api/v1/blob/{blobId}/hash?type=SHA256", headers=headers)
 
@@ -166,7 +162,9 @@ class BlobService:
                 if responseSHA256.status_code != 200:
                     print(f"Error obteniendo el hash SHA-256: {responseSHA256.status_code}")
 
-            blob.addData(blob_data["AccessURL"], blob_data["Users"], blob_data["Visibility"], md5_hash, sha256_hash)
+            accessURL = "/api/v1/blob/" + blobId
+
+            blob.addData(accessURL, blob_data["users"], blob_data["visibility"], md5_hash, sha256_hash)
             return blob
         elif response.status_code == 404:
             return make_response('Blob not found', 404)
@@ -184,7 +182,6 @@ class BlobService:
 
         if response.status_code == 204:
                 print("Blob deleted successfully")
-                return make_response("Blob deleted successfully", 200)
         elif response.status_code == 401:
             raise Unauthorized("Unauthorized")
         else:
@@ -195,10 +192,17 @@ class BlobService:
             raise Unauthorized("Authentication token is required for this operation.")
 
         headers = {"USER-TOKEN": self.authToken}
-        data = {"visibility": visibility}
 
         blob = Blob(blobId, self.authToken)
         blob.setVisibility(visibility)
+
+        visibility = visibility.lower()
+        if visibility == "private":
+            visibility = "False"
+        elif visibility == "public":
+            visibility = "True"
+
+        data = {"visibility": visibility}
 
         response = requests.put(f"{self.serviceURL}/api/v1/blob/{blobId}/visibility", headers=headers, json=data)
 
@@ -219,6 +223,7 @@ class BlobService:
 
         blob = self.getBlob(blobId)
 
+        print(blob.allowedUsers)
 
         # Si el tipo es 1 es para allow user, si no es para revoke user
         if type == 1:
@@ -309,6 +314,7 @@ class ClientCMD(cmd.Cmd):
         if not args:
             print("Uso incorrecto. Debes proporcionar <blobId>")
             return
+
         try:
             self.blob_service.deleteBlob(args)
             print("Blob eliminado correctamente.")
@@ -384,7 +390,11 @@ class ClientCMD(cmd.Cmd):
 
 
 if __name__ == "__main__":
-    serviceURL = "http://127.0.0.1:3002"
-    authURL = "http://127.0.0.1:3001"
-    userToken = "-K3QthI9iickiDBC-fGLMu4LlKfHKxjb2Y69DL4p"
-    ClientCMD(serviceURL, authURL,  userToken).cmdloop()
+    parser = argparse.ArgumentParser(description="Cliente Blob")
+    parser.add_argument("serviceURL", type=str, help="URL del servicio Blob")
+    parser.add_argument("authURL", type=str, help="URL del servicio de autenticación")
+    parser.add_argument("userToken", type=str, help="Token de usuario")
+
+    args = parser.parse_args()
+
+    ClientCMD(args.serviceURL, args.authURL, args.userToken).cmdloop()
