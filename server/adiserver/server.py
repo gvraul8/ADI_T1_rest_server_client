@@ -185,7 +185,7 @@ def routeApp(app, BLOBDB):
             except UserNotExists as e:
                 return make_response('Unauthorized', 401)
         
-            user_blobs = BLOBDB.get_user_blobs(user)
+            user_blobs = BLOBDB.get_blobs_by_user(user)
             return make_response(user_blobs, 200)
         else:
             return make_response('Unauthorized', 401)
