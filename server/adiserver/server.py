@@ -14,17 +14,16 @@ from adiserver import DEFAULT_PORT, HTTPS_DEBUG_MODE, DEFAULT_BLOB_DB
 from adiserver.service import BlobDB
 from adiauthcli.client import Client,Unauthorized,UserNotExists,UserAlreadyExists
 
-from server.adiserver import DEFAULT_AUTH_URL
+from adiserver import DEFAULT_AUTH_URL
 
 
 def routeApp(app, BLOBDB, auth_url):
     '''Enruta la API REST a la webapp'''
-
+    
     @app.route('/api/v1/blob', methods=['POST'])
     def create_blob():
         '''Crea un nuevo blob'''
         client = Client(auth_url, check_service=False)
-        print(auth_url)
         if "USER-TOKEN" in request.headers:
             try:
                 user_token = request.headers["USER-TOKEN"]
@@ -380,7 +379,7 @@ def main():
     '''Entry point for the auth server'''
     user_options = parse_commandline()
 
-    service = ServerService(user_options.db_path, user_options.address, user_options.port)
+    service = ServerService(user_options.db_path, user_options.address, user_options.port,user_options.auth_url)
 
     try:
         print(f'Starting service on: {service.base_uri}')
@@ -397,7 +396,12 @@ class ServerService:
     def __init__(self, db_path, host='0.0.0.0', port=DEFAULT_PORT, auth_url=DEFAULT_AUTH_URL):
         self._blobdb_ = BlobDB(db_path)
         self._auth_url_ = auth_url
-
+        comprobar_url=Client(auth_url, check_service=False)
+        if comprobar_url.service_up:
+            print("Authentication server is up")
+        else:
+            print("Authentication server is down")
+            sys.exit(2)
         self._host_ = host
         self._port_ = port
 
@@ -435,7 +439,7 @@ def parse_commandline():
     )
 
     parser.add_argument(
-        '-a', '--auth-url', type=str, default=DEFAULT_AUTH_URL,
+        '-a', '--auth_url', type=str, default=DEFAULT_AUTH_URL,
         help='URL of the authentication server (default: %(default)s', dest='auth_url'
     )
 
@@ -445,4 +449,5 @@ def parse_commandline():
 
 
 if __name__ == '__main__':
-    main()
+    
+    main()  
