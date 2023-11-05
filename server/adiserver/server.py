@@ -5,7 +5,7 @@
 import hashlib
 import sys
 import logging
-import argparse 
+import argparse
 import json
 
 from flask import Flask, make_response, request
@@ -14,14 +14,17 @@ from adiserver import DEFAULT_PORT, HTTPS_DEBUG_MODE, DEFAULT_BLOB_DB
 from adiserver.service import BlobDB
 from adiauthcli.client import Client,Unauthorized,UserNotExists,UserAlreadyExists
 
+from server.adiserver import DEFAULT_AUTH_URL
 
-def routeApp(app, BLOBDB):
+
+def routeApp(app, BLOBDB, auth_url):
     '''Enruta la API REST a la webapp'''
 
     @app.route('/api/v1/blob', methods=['POST'])
     def create_blob():
         '''Crea un nuevo blob'''
-        client = Client("http://127.0.0.1:3001", check_service=False)
+        client = Client(auth_url, check_service=False)
+        print(auth_url)
         if "USER-TOKEN" in request.headers:
             try:
                 user_token = request.headers["USER-TOKEN"]
@@ -45,13 +48,13 @@ def routeApp(app, BLOBDB):
 
     @app.route('/api/v1/blob/<blobId>', methods=['GET'])
     def get_blob(blobId):
-        client = Client("http://127.0.0.1:3001", check_service=False)
+        client = Client(auth_url, check_service=False)
         blob_visibility=BLOBDB.getVisibilityBlob(blobId)
-        
+
         if blob_visibility == 'public':
             '''Obtiene un blob por su ID'''
             blob=BLOBDB.get_blob(blobId)
-            
+
             response = {
                 "id": blob[0],
                 "name": blob[1],
@@ -62,7 +65,7 @@ def routeApp(app, BLOBDB):
             response_json = json.dumps(response)
 
             return make_response(response_json,200)
-        
+
         elif "USER-TOKEN" in request.headers:
                 try:
                     user_token = request.headers["USER-TOKEN"]
@@ -71,7 +74,7 @@ def routeApp(app, BLOBDB):
                     users=BLOBDB.get_users(blobId)
                     if user in users or owner == user:
                         blob=BLOBDB.get_blob(blobId)
-                        
+
                         response = {
                             "id": blob[0],
                             "name": blob[1],
@@ -89,13 +92,13 @@ def routeApp(app, BLOBDB):
                     return make_response('Unauthorized', 401)
         else:
             return make_response('Unauthorized', 401)
-        
+
     @app.route('/api/v1/blob/<blobId>', methods=['DELETE'])
     def delete_blob(blobId):
         '''Elimina un blob por su ID'''
-        client = Client("http://127.0.0.1:3001", check_service=False)
+        client = Client(auth_url, check_service=False)
         if "USER-TOKEN" in request.headers:
-            
+
             try:
                 user_token = request.headers["USER-TOKEN"]
                 user= client.token_owner(user_token)
@@ -115,9 +118,9 @@ def routeApp(app, BLOBDB):
     @app.route('/api/v1/blob/<blobId>', methods=['PUT'])
     def update_blob(blobId):
         '''Actualiza un blob por su ID'''
-        client = Client("http://127.0.0.1:3001", check_service=False)
+        client = Client(auth_url, check_service=False)
         if "USER-TOKEN" in request.headers:
-            
+
             try:
                 user_token = request.headers["USER-TOKEN"]
                 user= client.token_owner(user_token)
@@ -139,13 +142,13 @@ def routeApp(app, BLOBDB):
             return make_response({}, 204)
         else:
             return make_response('Unauthorized', 401)
-        
+
     @app.route('/api/v1/blob/<blobId>/visibility', methods=['PUT', 'PATCH'])
     def update_blob_visibility(blobId):
         '''Actualiza la visibilidad de un blol por su ID'''
-        client = Client("http://127.0.0.1:3001", check_service=False)
+        client = Client(auth_url, check_service=False)
         if "USER-TOKEN" in request.headers:
-            
+
             try:
                 user_token = request.headers["USER-TOKEN"]
                 user= client.token_owner(user_token)
@@ -168,13 +171,13 @@ def routeApp(app, BLOBDB):
             return make_response({},204)
         else:
             return make_response('Unauthorized', 401)
-    
+
     @app.route('/api/v1/blob/myblobs', methods=['GET'])
     def get_myBlobs():
         '''Obtiene todos los blobs un usuario determinado si es el propietario'''
-        client = Client("http://127.0.0.1:3001", check_service=False)
+        client = Client(auth_url, check_service=False)
         if "USER-TOKEN" in request.headers:
-            
+
             try:
                 user_token = request.headers["USER-TOKEN"]
                 user= client.token_owner(user_token)
@@ -184,7 +187,7 @@ def routeApp(app, BLOBDB):
                 return make_response('Unauthorized', 401)
             except UserNotExists as e:
                 return make_response('Unauthorized', 401)
-        
+
             user_blobs = BLOBDB.get_blobs_by_user(user)
             return make_response(user_blobs, 200)
         else:
@@ -193,9 +196,9 @@ def routeApp(app, BLOBDB):
     @app.route('/api/v1/blob/<blobId>/acl', methods=['POST'])
     def create_blob_acl(blobId):
         '''Crea la acl de un blob'''
-        client = Client("http://127.0.0.1:3001/", check_service=False)
+        client = Client(auth_url, check_service=False)
         if "USER-TOKEN" in request.headers:
-            
+
             try:
                 user_token = request.headers["USER-TOKEN"]
                 user= client.token_owner(user_token)
@@ -228,9 +231,9 @@ def routeApp(app, BLOBDB):
     @app.route('/api/v1/blob/<blobId>/acl/<username>', methods=['DELETE'])
     def delete_blob_acl(blobId,username):
         '''Elimina un usuario del acl de un blob'''
-        client = Client("http://127.0.0.1:3001/", check_service=False)
+        client = Client(auth_url, check_service=False)
         if "USER-TOKEN" in request.headers:
-            
+
             try:
                 user_token = request.headers["USER-TOKEN"]
                 user= client.token_owner(user_token)
@@ -243,7 +246,7 @@ def routeApp(app, BLOBDB):
                 return make_response('Unauthorized', 401)
 
         blob = BLOBDB.get_blob(blobId)
-        
+
         if blob == None:
             return make_response('Blob not found', 404)
         else:
@@ -256,10 +259,10 @@ def routeApp(app, BLOBDB):
                 BlobDB.delete_user(blobId, username)
                 return make_response('User permission removed', 201)
 
-    @app.route('/api/v1/blob/<blobId>/acl', methods=['PUT, PATCH'])
+    @app.route('/api/v1/blob/<blobId>/acl',  methods=['PUT', 'PATCH'])
     def update_blob_acl(blobId):
         '''Actualiza un ACL para un blob'''
-        client = Client("http://127.0.0.1:3001/", check_service=False)
+        client = Client(auth_url, check_service=False)
         if "USER-TOKEN" in request.headers:
             user_token = request.headers["USER-TOKEN"]
             user= client.token_owner(user_token)
@@ -290,11 +293,11 @@ def routeApp(app, BLOBDB):
     @app.route('/api/v1/blob/<blobId>/acl', methods=['GET'])
     def get_blob_acl(blobId):
         '''Obtiene un ACL para un blob'''
-        client = Client("http://127.0.0.1:3001/", check_service=False)
+        client = Client(auth_url, check_service=False)
         if "USER-TOKEN" in request.headers:
             user_token = request.headers["USER-TOKEN"]
             user= client.token_owner(user_token)
-            owner = BlobDB.blobOwner(blobId)
+            owner = BLOBDB.blobOwner(blobId)
             if user == None or owner != user or owner == None:
                 return make_response('Unauthorized', 401)
         else:
@@ -311,9 +314,9 @@ def routeApp(app, BLOBDB):
     @app.route('/api/v1/blob/<blobId>/hash', methods=['GET'])
     def get_blob_hash(blobId):
         '''Obtiene el hash de un blob por su ID'''
-        client = Client("http://127.0.0.1:3001", check_service=False)
+        client = Client(auth_url, check_service=False)
         blob_visibility=BLOBDB.getVisibilityBlob(blobId)
-        
+
         if blob_visibility == 'public':
             hash_type = request.args.get('type')
             if hash_type == None:
@@ -391,14 +394,15 @@ def main():
 
 class ServerService:
     '''Wrap all components used by the service'''
-    def __init__(self, db_path, host='0.0.0.0', port=DEFAULT_PORT):
+    def __init__(self, db_path, host='0.0.0.0', port=DEFAULT_PORT, auth_url=DEFAULT_AUTH_URL):
         self._blobdb_ = BlobDB(db_path)
+        self._auth_url_ = auth_url
 
         self._host_ = host
         self._port_ = port
 
         self._app_ = Flask(__name__.split('.', maxsplit=1)[0])
-        routeApp(self._app_, self._blobdb_)
+        routeApp(self._app_, self._blobdb_, self._auth_url_)
 
     @property
     def base_uri(self):
@@ -428,6 +432,11 @@ def parse_commandline():
     parser.add_argument(
         '-d', '--db', type=str, default=DEFAULT_BLOB_DB,
         help='Database to use (default: %(default)s', dest='db_path'
+    )
+
+    parser.add_argument(
+        '-a', '--auth-url', type=str, default=DEFAULT_AUTH_URL,
+        help='URL of the authentication server (default: %(default)s', dest='auth_url'
     )
 
 
