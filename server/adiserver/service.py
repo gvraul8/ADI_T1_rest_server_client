@@ -74,8 +74,8 @@ class BlobDB:
         try:
             cursor = self.conn.execute(f"SELECT * FROM blobs WHERE id = {id}")
             if cursor.fetchone() is not None:
-                conn.execute(f"DELETE FROM blobs WHERE id = {id}")
-                conn.commit()
+                self.conn.execute(f"DELETE FROM blobs WHERE id = {id}")
+                self.conn.commit()
                 print("Record deleted successfully")
             else:
                 print("Record with ID {} not found".format(id))

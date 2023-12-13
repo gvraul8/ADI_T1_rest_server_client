@@ -12,7 +12,7 @@ from flask import Flask, make_response, request
 
 from adiserver import DEFAULT_PORT, HTTPS_DEBUG_MODE, DEFAULT_BLOB_DB
 from adiserver.service import BlobDB
-from adiauthcli.client import Client,Unauthorized,UserNotExists,UserAlreadyExists
+from adiauthcli.client import Client,Unauthorized,UserNotExists
 
 from adiserver import DEFAULT_AUTH_URL
 
