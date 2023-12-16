@@ -65,10 +65,10 @@ class BlobDB:
             users_str = ', '.join(users)
             cursor = self.conn.cursor()
             cursor.execute(f"UPDATE blobs SET name = '{name}', local_name = '{local_name}', visibility = '{visibility}', users = '{users_str}' WHERE id = {id}")
-            cursor.commit()
+            self.conn.commit()
             print("Record updated successfully")
-        except:
-            print("Record update failed")
+        except sqlite3.Error as e:
+            print("Record deletion failed:", str(e))
 
     def delete_blob(self, id):
         try:

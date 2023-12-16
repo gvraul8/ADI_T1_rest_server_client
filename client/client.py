@@ -11,9 +11,10 @@ from pathlib import Path
 
 class Blob:
     """Blob class"""
-    def __init__(self, blobId, authToken):
+    def __init__(self, blobId, authToken,serviceURL):
         self.blobId = blobId
         self.authToken = authToken
+        self.serviceURL = serviceURL
 
     def __str__(self):
        return f"Blob ID: {self.blobId}\nAuth Token: {self.authToken}\nAccess URL: {self.accessURL}\nIs Private: {self.isPrivate}\nMD5: {self.md5}\nSHA256: {self.sha256}\nAllowed Users: {', '.join(self.allowedUsers)}"
@@ -83,16 +84,41 @@ class Blob:
         else:
             print("Local filename not provided.")
 
+    def uploadFromFile(self, blobId, localFileName):
+        """Upload content from file to blob.
 
+        Args:
+            blobId (str): Blob ID.
+            localFileName (str): Local file name.
 
+        Returns:
+            Blob: The updated blob.
+        """
+        data_upload = {}
+        try:
+            with open(localFileName, 'r') as file:
+                for linea in file:
+                    # Convertir la línea a un diccionario
+                    clave, valor = linea.strip().split(':', 1)
+                    # Almacenar en el diccionario
+                    data_upload[clave] = valor
+            json_data = json.dumps(data_upload, indent=2)
+            headers = {'USER-TOKEN': self.authToken}
+            blob_service = BlobService(self.serviceURL, self.authToken)
+            print(data_upload)
+            print(self.serviceURL)
+            print(blobId)
+            print(headers)
+            response = requests.put(f'{blob_service.serviceURL}/api/v1/blob/{blobId}', headers=headers, json=data_upload)
 
-    def uploadFromFile(self, localFileName: Union[str, Path]):
-        """Cargar el contenido del blob desde un archivo local."""
-        pass
-
-
-
-
+            if response.status_code == 204:
+                print(f"Blob content uploaded successfully to blob ID {blobId}")
+                return Blob(blobId, self.authToken)
+            else:
+                raise BlobServiceError(f"Failed to upload content to blob: {response.status_code}")
+        except Exception as e:
+            print(f"Error uploading content from file: {str(e)}")
+            raise
 
 class BlobService:
     def __init__(self, serviceURL, authToken=None):
@@ -102,16 +128,19 @@ class BlobService:
     def createBlob(self, localFileName):
         if not self.authToken:
             raise Unauthorized("Authentication token is required for this operation.")
-
+        datos = {}
         try:
             with open(localFileName, 'r') as file:
-                data = json.load(file)
+                for linea in file:
+                    # Convertir la línea a un diccionario
+                    clave, valor = linea.strip().split(':', 1)
+                    # Almacenar en el diccionario
+                    datos[clave] = valor
         except Exception as e:
             raise BlobServiceError(f"Failed to read file: {str(e)}")
-
+     
         headers = {"USER-TOKEN": self.authToken}
-
-        response = requests.post(f"{self.serviceURL}/api/v1/blob", headers=headers, json=data)
+        response = requests.post(f"{self.serviceURL}/api/v1/blob", headers=headers, json=datos)
 
         if response.status_code == 201:
             blob_data = response.json()
@@ -268,7 +297,7 @@ class ClientCMD(cmd.Cmd):
     def __init__(self, serviceURL, authURL, authToken):
         super().__init__()
         self.blob_service = BlobService(serviceURL, authToken)
-        self.blob = Blob(None, authToken)
+        self.blob = Blob(None, authToken,serviceURL)
         self.serviceURL = serviceURL
         self.authURL = authURL
         self.authToken = authToken
@@ -387,7 +416,32 @@ class ClientCMD(cmd.Cmd):
             print("ACL del blob " +str(args) +": " + str(acl))
         except Exception as e:
             print("Error al obtener la ACL: " + str(e))
+    
+    def do_exit(self, args):
+        """Sale de la aplicación."""
+        print("Saliendo de la aplicación...")
+        return True
+    
+    def do_uploadFromFile(self, args):
+        """Upload content from file to blob.
 
+        Usage: uploadFromFile <blobId> <localFileName>
+
+        Example: uploadFromFile 1234567890 my_file.txt
+        """
+
+        if not args:
+            print("Uso incorrecto. Debes proporcionar <blobId> <localFileName>")
+            return
+
+        args = args.split(" ")
+
+        try:
+            #self.blob = self.blob_service.getBlob(args[0])
+            self.blob = self.blob.uploadFromFile(args[0], args[1])
+            print("El contenido del archivo se ha subido correctamente al blob")
+        except Exception as e:
+            print("Error al subir el contenido del archivo: " + str(e))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Cliente Blob")
