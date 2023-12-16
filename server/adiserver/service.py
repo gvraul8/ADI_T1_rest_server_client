@@ -62,9 +62,13 @@ class BlobDB:
         
     def update_blob(self, id, name, local_name, visibility, users):
         try:
-            users_str = ', '.join(users)
+            new_users=""
+            users_str = users.split(",")
+            for user in users_str:
+                new_users=new_users+user+" "
+            print(new_users)
             cursor = self.conn.cursor()
-            cursor.execute(f"UPDATE blobs SET name = '{name}', local_name = '{local_name}', visibility = '{visibility}', users = '{users_str}' WHERE id = {id}")
+            cursor.execute(f"UPDATE blobs SET name = '{name}', local_name = '{local_name}', visibility = '{visibility}', users = '{new_users}' WHERE id = {id}")
             self.conn.commit()
             print("Record updated successfully")
         except sqlite3.Error as e:

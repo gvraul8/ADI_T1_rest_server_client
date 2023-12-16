@@ -326,17 +326,18 @@ def routeApp(app, BLOBDB, auth_url):
                     return make_response('Hash type not valid', 400)
                 else:
                     blob = BLOBDB.get_blob(blobId)
-                    #print(blob)
+                    print(blob)
                     #print(blob[1])
                     if blob == None:
                         return make_response('Blob not found', 404)
                     else:
                         # Para concatenar todos los elementos del objeto 'blob' en una sola cadena
-                        blob_data = ''.join(map(str, blob)).encode('utf-8')
+                        blob_to_hash=blob[1]+" "+blob[3]+" "+blob[4]
                         if hash_type == 'MD5':
-                            sum_hash = hashlib.md5(blob_data).hexdigest()
+                            sum_hash = hashlib.md5(blob_to_hash.encode()).hexdigest()
                         elif hash_type == 'SHA256':
-                            sum_hash = hashlib.sha256(blob_data).hexdigest()
+                            sum_hash = hashlib.sha256(blob_to_hash.encode()).hexdigest()
+                        print(sum_hash)
             return make_response(sum_hash, 200)
         elif "USER-TOKEN" in request.headers:
             try:
