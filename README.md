@@ -98,3 +98,22 @@ python3 client.py <serviceURL> <authURL> <userToken>
 ```
 
 Escribimos help y podemos ver las opciones que podemos realizar
+
+
+
+## VIRTUALIZACIÓN CON DOCKER
+
+### Construir imagen de Docker
+```bash
+./build.sh
+```
+
+### Iniciar contenedor
+```bash
+./start.sh
+```
+
+### Parar contenedor
+```bash
+./stop.sh
+```
