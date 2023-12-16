@@ -68,21 +68,20 @@ class Blob:
             self.allowedUsers.append(username)
             print(f"User '{username}' has been allowed access to the blob.")
 
-
-
-    def dumpToFile(self, localFilename):
-        """ Save a blob on local file """
+    def dumpToFile(self, localFilename, blobId):
+        """ Save a blob to a local file """
         if localFilename:
             blob_service = BlobService(self.serviceURL, self.authToken)
-            blob_data = blob_service.getBlob(self.accessURL)
+            blob_data = blob_service.getBlob(str(blobId))
             if blob_data:
-                with open(localFilename, 'wb') as file:
-                    file.write(blob_data)
+                with open(localFilename, 'w') as file:
+                    file.write(str(blob_data))
                     print(f"Blob saved to local file: {localFilename}")
             else:
                 print("Failed to retrieve blob data.")
         else:
             print("Local filename not provided.")
+
 
     def uploadFromFile(self, blobId, localFileName):
         """Upload content from file to blob.
@@ -113,7 +112,7 @@ class Blob:
 
             if response.status_code == 204:
                 print(f"Blob content uploaded successfully to blob ID {blobId}")
-                return Blob(blobId, self.authToken)
+                return Blob(blobId, self.authToken, self.serviceURL)
             else:
                 raise BlobServiceError(f"Failed to upload content to blob: {response.status_code}")
         except Exception as e:
@@ -126,6 +125,7 @@ class BlobService:
         self.authToken = authToken
 
     def createBlob(self, localFileName):
+        "IMPORATANTE: El formato del archivo debe ser name: localname:"
         if not self.authToken:
             raise Unauthorized("Authentication token is required for this operation.")
         datos = {}
@@ -138,13 +138,13 @@ class BlobService:
                     datos[clave] = valor
         except Exception as e:
             raise BlobServiceError(f"Failed to read file: {str(e)}")
-     
+
         headers = {"USER-TOKEN": self.authToken}
         response = requests.post(f"{self.serviceURL}/api/v1/blob", headers=headers, json=datos)
 
         if response.status_code == 201:
             blob_data = response.json()
-            return Blob(blob_data["BlobId"], self.authToken)
+            return Blob(blob_data["BlobId"], self.authToken, self.serviceURL)
         elif response.status_code == 401:
             raise Unauthorized("Unauthorized")
         else:
@@ -178,7 +178,7 @@ class BlobService:
         if response.status_code == 200:
             blob_data = response.json()
 
-            blob = Blob(blob_data['id'], self.authToken)
+            blob = Blob(blob_data['id'], self.authToken, self.serviceURL)
             responseMD5 = requests.get(f"{self.serviceURL}/api/v1/blob/{blobId}/hash?type=MD5", headers=headers)
             responseSHA256 = requests.get(f"{self.serviceURL}/api/v1/blob/{blobId}/hash?type=SHA256", headers=headers)
 
@@ -222,7 +222,7 @@ class BlobService:
 
         headers = {"USER-TOKEN": self.authToken}
 
-        blob = Blob(blobId, self.authToken)
+        blob = Blob(blobId, self.authToken, self.serviceURL)
         blob.setVisibility(visibility)
 
         visibility = visibility.lower()
@@ -355,7 +355,7 @@ class ClientCMD(cmd.Cmd):
         if not self.blob:
             print("No se ha creado un blob. Use 'create_blob' para crear un blob primero.")
             return
-        elif not args:
+        elif not args or len(args.split()) != 2:
             print("Uso incorrecto. Debes proporcionar <blobId> <visibility>")
             return
 
@@ -372,7 +372,7 @@ class ClientCMD(cmd.Cmd):
             print("No se ha creado un blob. Use 'create_blob' para crear un blob primero.")
             return
 
-        if not args:
+        if not args or len(args.split()) != 2:
             print("Uso incorrecto. Debes proporcionar <blobId> <username>.")
             return
 
@@ -390,7 +390,7 @@ class ClientCMD(cmd.Cmd):
             print("No se ha creado un blob. Use 'create_blob' para crear un blob primero.")
             return
 
-        if not args:
+        if not args or len(args.split()) != 2:
             print("Uso incorrecto. Debes proporcionar <blobId> <username>.")
             return
 
@@ -416,12 +416,7 @@ class ClientCMD(cmd.Cmd):
             print("ACL del blob " +str(args) +": " + str(acl))
         except Exception as e:
             print("Error al obtener la ACL: " + str(e))
-    
-    def do_exit(self, args):
-        """Sale de la aplicación."""
-        print("Saliendo de la aplicación...")
-        return True
-    
+
     def do_uploadFromFile(self, args):
         """Upload content from file to blob.
 
@@ -430,7 +425,7 @@ class ClientCMD(cmd.Cmd):
         Example: uploadFromFile 1234567890 my_file.txt
         """
 
-        if not args:
+        if not args or len(args.split()) != 2:
             print("Uso incorrecto. Debes proporcionar <blobId> <localFileName>")
             return
 
@@ -442,6 +437,31 @@ class ClientCMD(cmd.Cmd):
             print("El contenido del archivo se ha subido correctamente al blob")
         except Exception as e:
             print("Error al subir el contenido del archivo: " + str(e))
+
+    def do_dump_to_file(self, args):
+        """Guardar un blob en un archivo local."""
+        if not self.blob:
+            print("No se ha creado un blob. Usa 'create_blob' para crear un blob primero.")
+            return
+
+        if not args:
+            print("Uso incorrecto. Debes proporcionar exactamente <localFilename>")
+            return
+
+        args = args.split()
+
+        local_filename = args[0]
+
+        try:
+            self.blob.dumpToFile(local_filename, self.blob.blobId)
+            print(f"Blob guardado en el archivo local: {local_filename}")
+        except Exception as e:
+            print(f"Error al guardar el blob en el archivo local: {str(e)}")
+
+    def do_exit(self, args):
+        """Sale de la aplicación."""
+        print("Saliendo de la aplicación...")
+        return True
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Cliente Blob")
