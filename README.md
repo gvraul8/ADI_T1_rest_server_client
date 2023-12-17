@@ -99,8 +99,6 @@ python3 client.py <serviceURL> <authURL> <userToken>
 
 Escribimos help y podemos ver las opciones que podemos realizar
 
-
-
 ## VIRTUALIZACIÓN CON DOCKER
 
 ### Construir imagen de Docker
@@ -116,4 +114,27 @@ Escribimos help y podemos ver las opciones que podemos realizar
 ### Parar contenedor
 ```bash
 ./stop.sh
+```
+
+## VIRTUALIZACIÓN CON Vagrant
+
+### Construir imagen qcow2 utilizando qemu
+```bash
+./build_vagrant.sh --qcow2
+```
+### Construir imagen por defecto de virtual box
+```bash
+./build_vagrant.sh
+```
+### Correr imagen máquina virtual qcow2
+```bash
+./run_vagrant.sh --qcow2
+```
+### Correr imagen virtual box
+```bash
+./run_vagrant.sh 
+```
+### Parar máquina virtual
+```bash
+./stop_vagrant.sh
 ```
