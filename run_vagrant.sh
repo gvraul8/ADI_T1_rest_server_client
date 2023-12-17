@@ -5,10 +5,10 @@ if [[ "$1" == "--qcow2" ]]; then
   # Lógica para ejecutar la imagen QCOW2
   echo "Ejecutando la imagen QCOW2..."
   qcow2_image_name="virtualizacion_image.qcow2"
-  #Utilizando quemu para ejecutar la imagen
-  qemu-system-x86_64 -drive file=$qcow2_image_name,format=qcow2
+  # Utilizando qemu para ejecutar la imagen con la ubicación encontrada
+  eval "sudo $qemu_path -drive file=$qcow2_image_name,format=qcow2"
 else
-  # Comportamiento predeterminado para otras opciones (por ejemplo, VirtualBox)
+  #Comportamiento para virtualización con VirtualBox
   echo "Ejecutando la imagen de VirtualBox..."
   vagrant ssh -c "cd /vagrant/server/auth_service-main && pip install . && nohup /vagrant/server/auth_service-main/auth_service > auth_service.log 2>&1 &"
   vagrant up
